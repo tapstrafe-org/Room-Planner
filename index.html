@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Planner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='10' y='10' width='80' height='80' rx='8' fill='%232563eb'/><rect x='24' y='24' width='30' height='20' fill='white'/><rect x='60' y='24' width='16' height='52' fill='white' opacity='.7'/><rect x='24' y='52' width='30' height='24' fill='white' opacity='.85'/></svg>">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/" } }
+</script>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== Top toolbar ===== -->
+  <header id="toolbar">
+    <div class="brand" title="Room Planner">
+      <svg width="22" height="22" viewBox="0 0 100 100"><rect x="10" y="10" width="80" height="80" rx="8" fill="#2563eb"/><rect x="24" y="24" width="30" height="20" fill="white"/><rect x="60" y="24" width="16" height="52" fill="white" opacity=".7"/><rect x="24" y="52" width="30" height="24" fill="white" opacity=".85"/></svg>
+      <input id="plan-name" class="plan-name" value="Untitled plan" spellcheck="false" title="Plan name">
+    </div>
+
+    <div class="tb-group">
+      <button id="btn-new" title="New plan">New</button>
+      <button id="btn-open" title="Open plan (.json)">Open</button>
+      <button id="btn-save" title="Save plan (.json)">Save</button>
+      <div class="dropdown">
+        <button id="btn-export" title="Export">Export ▾</button>
+        <div class="menu">
+          <button id="exp-png">PNG — 2D plan</button>
+          <button id="exp-png3d">PNG — 3D view</button>
+          <button id="exp-dxf">DXF — CAD (AutoCAD, etc.)</button>
+          <button id="exp-json">JSON — plan file</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tb-group">
+      <button id="btn-undo" title="Undo (Ctrl+Z)">↶</button>
+      <button id="btn-redo" title="Redo (Ctrl+Shift+Z / Ctrl+Y)">↷</button>
+    </div>
+
+    <div class="tb-group" id="tools">
+      <button class="tool active" data-tool="select" title="Select / move (V)">Select</button>
+      <button class="tool" data-tool="pan" title="Pan (H, or hold Space)">Pan</button>
+      <button class="tool" data-tool="measure" title="Measure (M)">Measure</button>
+    </div>
+
+    <div class="tb-group">
+      <button id="btn-zoom-out" title="Zoom out (-)">−</button>
+      <span id="zoom-label" class="mono" title="Zoom">100%</span>
+      <button id="btn-zoom-in" title="Zoom in (+)">+</button>
+      <button id="btn-zoom-fit" title="Zoom to fit (F)">Fit</button>
+    </div>
+
+    <div class="tb-group">
+      <label class="chk" title="Snap positions and sizes to the grid (G)"><input type="checkbox" id="opt-snap-grid" checked> Grid snap</label>
+      <label class="chk" title="Snap edges to other objects and walls"><input type="checkbox" id="opt-snap-obj" checked> Obj snap</label>
+      <label class="chk" title="Show object labels"><input type="checkbox" id="opt-labels" checked> Labels</label>
+      <label class="chk" title="Show dimensions on every object"><input type="checkbox" id="opt-dims"> Dims</label>
+    </div>
+
+    <div class="tb-group">
+      <label title="Display units">
+        <select id="opt-units" title="Display units">
+          <option value="cm">cm</option>
+          <option value="mm">mm</option>
+          <option value="in">in</option>
+          <option value="ft">ft</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="tb-group view-switch" id="view-switch">
+      <button data-view="2d" class="active" title="2D plan (1)">2D</button>
+      <button data-view="split" title="Split view (2)">Split</button>
+      <button data-view="3d" title="3D view (3)">3D</button>
+    </div>
+
+    <button id="btn-help" class="ghost" title="Keyboard shortcuts (?)">?</button>
+  </header>
+
+  <!-- ===== Main area ===== -->
+  <div id="main">
+
+    <!-- Left: library -->
+    <aside id="left-panel">
+      <div class="panel-tabs">
+        <button class="ptab active" data-ptab="library">Library</button>
+        <button class="ptab" data-ptab="custom">Custom</button>
+        <button class="ptab" data-ptab="outline">Objects</button>
+      </div>
+
+      <section class="ptab-page active" data-page="library">
+        <input id="lib-search" type="search" placeholder="Search objects…">
+        <div id="lib-list" class="lib-list"></div>
+        <p class="hint">Click an item to add it to the plan, or drag it onto the canvas.</p>
+      </section>
+
+      <section class="ptab-page" data-page="custom">
+        <h3>New custom object</h3>
+        <form id="custom-form" class="form-grid" autocomplete="off">
+          <label>Name <input name="name" required placeholder="e.g. Corner desk"></label>
+          <label>Width <input name="w" type="number" step="any" min="0.1" required></label>
+          <label>Depth <input name="d" type="number" step="any" min="0.1" required></label>
+          <label>Height <input name="h" type="number" step="any" min="0" required></label>
+          <label>Shape
+            <select name="shape">
+              <option value="rect">Rectangle</option>
+              <option value="round">Rounded</option>
+              <option value="ellipse">Ellipse / round</option>
+              <option value="door">Door (swing)</option>
+            </select>
+          </label>
+          <label>Color <input name="color" type="color" value="#a78bfa"></label>
+          <div class="span2 row">
+            <button type="submit" class="primary">Save to library</button>
+            <button type="button" id="custom-add-only">Add to plan only</button>
+          </div>
+        </form>
+        <p class="hint">Tip: select any object(s) or a group in the plan and press <b>Save as custom object</b> in the Properties panel to save it, including multi-part groups.</p>
+        <h3>Saved custom objects</h3>
+        <div id="custom-list" class="lib-list"></div>
+        <div class="row">
+          <button id="custom-export">Export library</button>
+          <button id="custom-import">Import library</button>
+        </div>
+      </section>
+
+      <section class="ptab-page" data-page="outline">
+        <div id="outline-list" class="outline"></div>
+        <p class="hint">Click to select, Shift+click to add. Drag to reorder (stacking order).</p>
+      </section>
+    </aside>
+
+    <!-- Center: views -->
+    <div id="viewport" data-view="2d">
+      <div id="view2d" class="view">
+        <canvas id="canvas2d"></canvas>
+        <div id="tooltip" class="tooltip" hidden></div>
+        <div id="canvas-hint" class="canvas-hint"></div>
+      </div>
+      <div id="view3d" class="view">
+        <div id="three-container"></div>
+        <div id="tooltip3d" class="tooltip" hidden></div>
+        <div class="view3d-controls">
+          <label class="chk"><input type="checkbox" id="opt3d-walls-auto" checked> Auto-hide near walls</label>
+          <label class="chk"><input type="checkbox" id="opt3d-labels" checked> Labels</label>
+          <label class="chk"><input type="checkbox" id="opt3d-ceiling"> Ceiling</label>
+          <button id="btn3d-reset" title="Reset camera">Reset camera</button>
+          <button id="btn3d-top" title="Top-down camera">Top</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: properties -->
+    <aside id="right-panel">
+      <div id="props"></div>
+    </aside>
+  </div>
+
+  <!-- ===== Status bar ===== -->
+  <footer id="statusbar">
+    <span id="status-coords" class="mono">x: – y: –</span>
+    <span id="status-sel">Nothing selected</span>
+    <span id="status-msg" class="grow"></span>
+    <span id="status-room" class="mono"></span>
+  </footer>
+</div>
+
+<!-- Help dialog -->
+<dialog id="help-dialog">
+  <h2>Room Planner — shortcuts</h2>
+  <div class="help-cols">
+    <table>
+      <tr><th colspan="2">Tools & view</th></tr>
+      <tr><td>V / H / M</td><td>Select / Pan / Measure tool</td></tr>
+      <tr><td>Space (hold)</td><td>Temporary pan</td></tr>
+      <tr><td>Scroll wheel</td><td>Zoom at cursor</td></tr>
+      <tr><td>Middle drag</td><td>Pan</td></tr>
+      <tr><td>F</td><td>Zoom to fit</td></tr>
+      <tr><td>1 / 2 / 3</td><td>2D / Split / 3D view</td></tr>
+      <tr><td>G</td><td>Toggle grid snap</td></tr>
+      <tr><th colspan="2">Selection</th></tr>
+      <tr><td>Click</td><td>Select (whole group)</td></tr>
+      <tr><td>Alt+Click</td><td>Select single object inside group</td></tr>
+      <tr><td>Shift+Click</td><td>Add / remove from selection</td></tr>
+      <tr><td>Drag on empty</td><td>Marquee select</td></tr>
+      <tr><td>Ctrl+A</td><td>Select all</td></tr>
+      <tr><td>Esc</td><td>Deselect / cancel</td></tr>
+    </table>
+    <table>
+      <tr><th colspan="2">Editing</th></tr>
+      <tr><td>Arrows</td><td>Nudge 1 grid step (Shift: ×10)</td></tr>
+      <tr><td>R / Shift+R</td><td>Rotate 90° cw / ccw</td></tr>
+      <tr><td>Rotate handle + Shift</td><td>Snap rotation to 15°</td></tr>
+      <tr><td>Corner handle + Shift</td><td>Resize keeping proportions</td></tr>
+      <tr><td>X / Y</td><td>Flip horizontally / vertically</td></tr>
+      <tr><td>T</td><td>Transpose (swap width &amp; depth)</td></tr>
+      <tr><td>Ctrl+D</td><td>Duplicate</td></tr>
+      <tr><td>Ctrl+C / Ctrl+V</td><td>Copy / Paste</td></tr>
+      <tr><td>Ctrl+G / Ctrl+Shift+G</td><td>Group / Ungroup</td></tr>
+      <tr><td>Ctrl+L</td><td>Lock / unlock</td></tr>
+      <tr><td>Page Up / Page Down</td><td>Bring forward / send backward</td></tr>
+      <tr><td>Delete / Backspace</td><td>Delete</td></tr>
+      <tr><td>Ctrl+Z / Ctrl+Shift+Z</td><td>Undo / Redo</td></tr>
+      <tr><td>Ctrl+S / Ctrl+O</td><td>Save / Open plan</td></tr>
+    </table>
+  </div>
+  <p class="hint">Your plan and custom library are auto-saved in this browser. Use <b>Save</b> to keep a .json file, and <b>Export → DXF</b> to open the plan in CAD software (DWG is a proprietary binary format; every CAD package, including AutoCAD, imports DXF directly and can save it as DWG).</p>
+  <form method="dialog"><button class="primary">Close</button></form>
+</dialog>
+
+<input type="file" id="file-input" accept=".json,application/json" hidden>
+<input type="file" id="lib-file-input" accept=".json,application/json" hidden>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

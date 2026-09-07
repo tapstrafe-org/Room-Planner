@@ -1,0 +1,10 @@
+{
+  "name": "room-planner",
+  "version": "1.0.0",
+  "description": "Browser-based floor planner with custom objects, groups, 3D view and PNG/DXF export",
+  "private": true,
+  "scripts": {
+    "start": "npx --yes http-server -p 8080 -c-1 -o ."
+  },
+  "license": "MIT"
+}
